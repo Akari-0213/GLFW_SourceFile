@@ -2,10 +2,13 @@
 #include <cstdlib>
 #include <fstream>
 #include <vector>
+#include <memory>
 using namespace std;
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+
+#include "Shape.h"
 
 
 //シェーダのソースファイルを読み込んだメモリを返す
@@ -163,6 +166,15 @@ GLuint loadProgram(const char* vert, const char* frag)
 
 }
 
+//短形の頂点の位置
+constexpr Object::Vertex rectangleVertex[] =
+{
+	{-0.5f, -0.5f},
+	{0.5f, -0.5f},
+	{0.5f, 0.5f},
+	{-0.5f, 0.5f}
+};
+
 
 int main() {
 	//GLFWを初期化する
@@ -225,12 +237,19 @@ int main() {
 	//プログラムオブジェクトを作成する
 	const GLuint program(loadProgram("point.vert", "point.frag"));
 
+	//図形データを作成する
+	unique_ptr<const Shape> shape(new Shape(2, 4, rectangleVertex));
+
 	while (glfwWindowShouldClose(window) == GL_FALSE)
 	{
 		//ウィンドウを塗りつぶす
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		//シェーダープログラムの使用開始
+		glUseProgram(program);
+
+		//図形を描写する
+		shape->draw();
 
 		//カラーバッファを入れ替える
 		glfwSwapBuffers(window);

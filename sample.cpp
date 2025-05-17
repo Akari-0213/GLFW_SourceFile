@@ -8,6 +8,7 @@ using namespace std;
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#include "Window.h"
 #include "Shape.h"
 
 
@@ -193,66 +194,41 @@ int main() {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	//ウィンドウを作成する
-	GLFWwindow *const window(glfwCreateWindow(640, 480, "Hello!", NULL, NULL));
-	if (window == NULL) {
-		cout << "Cannot create GLFW window" << endl;
-		return 1;
-	}
-
-	//作成したウィンドウをOpenGLの処理対象にする
-	glfwMakeContextCurrent(window);
-
-	//GLEWを初期化する
-	glewExperimental = GL_TRUE;
-	if (glewInit() != GLEW_OK)
-	{
-		cout << "Cannot initialize GLEW" << endl;
-		return 1;
-	}
-
-	// 垂直同期のタイミングを待つ
-	glfwSwapInterval(1);
+	Window window;
 
 	//背景色を指定する
 	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-	////バーテックスシェーダーのソースプログラム
-	//static constexpr GLchar vsrc[] =
-	//	"#version 150 core\n"
-	//	"in vec4 position;\n"
-	//	"void main()\n"
-	//	"{"
-	//	"	gl_Position = position;\n"
-	//	"}\n";
-
-	////フラグメントシェーダーのソースプログラム
-	//static constexpr GLchar fsrc[] =
-	//	"#version 150 core\n"
-	//	"out vec4 fragment;\n"
-	//	"void main()\n"
-	//	"{\n"
-	//	"	fragment = vec4(1.0, 0.0, 0.0, 1.0};\n"
-	//	"}\n";
+	//ビューポートを設定する
+	glViewport(100, 50, 300, 300);
 
 	//プログラムオブジェクトを作成する
 	const GLuint program(loadProgram("point.vert", "point.frag"));
 
+	// uniform 変数の場所を取得する
+	const GLint sizeLoc(glGetUniformLocation(program, "size"));
+	const GLint scaleLoc(glGetUniformLocation(program, "scale"));
+
 	//図形データを作成する
 	unique_ptr<const Shape> shape(new Shape(2, 4, rectangleVertex));
 
-	while (glfwWindowShouldClose(window) == GL_FALSE)
+	while (window)
 	{
 		//ウィンドウを塗りつぶす
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		//シェーダープログラムの使用開始
 		glUseProgram(program);
+		
+		//uniform変数に値を設定する
+		glUniform2fv(sizeLoc, 1, window.getSize());
+		glUniform1f(scaleLoc, window.getScale());
 
 		//図形を描写する
 		shape->draw();
 
 		//カラーバッファを入れ替える
-		glfwSwapBuffers(window);
+		window.swapBuffers();
 
 		//イベントを取り出す
 		glfwWaitEvents();

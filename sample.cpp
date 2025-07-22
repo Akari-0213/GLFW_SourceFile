@@ -8,6 +8,7 @@
 #include "Window.h"
 #include "Matrix.h"
 #include "Shape.h"
+#include "ShapeIndex.h"
 
 // シェーダオブジェクトのコンパイル結果を表示する
 //   shader: シェーダオブジェクト名
@@ -96,6 +97,7 @@ GLuint createProgram(const char* vsrc, const char* fsrc)
 
     // プログラムオブジェクトをリンクする
     glBindAttribLocation(program, 0, "position");
+    glBindAttribLocation(program, 1, "color");
     glBindFragDataLocation(program, 0, "fragment");
     glLinkProgram(program);
 
@@ -174,6 +176,52 @@ constexpr Object::Vertex rectangleVertex[] =
   { -0.5f,  0.5f }
 };
 
+constexpr Object::Vertex octanhedronVertex[] =
+{
+  {  0.0f,  1.0f,  0.0f },
+  { -1.0f,  0.0f,  0.0f },
+  {  0.0f,  -1.0f,  0.0f },
+  {  1.0f,  0.0f,  0.0f },
+  {  0.0f,  1.0f,  0.0f },
+  {  0.0f,  0.0f,  1.0f },
+  {  0.0f,  -1.0f,  0.0f },
+  {  0.0f,  0.0f,  -1.0f },
+  {  -1.0f,  0.0f,  0.0f },
+  {  0.0f,  0.0f,  1.0f },
+  {  1.0f,  0.0f,  0.0f },
+  {  0.0f,  0.0f,  -1.0f }
+};
+
+constexpr Object::Vertex cubeVertex[] =
+{
+   { -1.0f, -1.0f, -1.0f,  0.0f,  0.0f,  0.0f },  // (0) 
+  { -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  0.8f },  // (1) 
+  { -1.0f,  1.0f,  1.0f,  0.0f,  0.8f,  0.0f },  // (2) 
+  { -1.0f,  1.0f, -1.0f,  0.0f,  0.8f,  0.8f },  // (3) 
+  {  1.0f,  1.0f, -1.0f,  0.8f,  0.0f,  0.0f },  // (4) 
+  {  1.0f, -1.0f, -1.0f,  0.8f,  0.0f,  0.8f },  // (5) 
+  {  1.0f, -1.0f,  1.0f,  0.8f,  0.8f,  0.0f },  // (6) 
+  {  1.0f,  1.0f,  1.0f,  0.8f,  0.8f,  0.8f }   // (7) 
+};
+
+
+// 六面体の稜線の両端点のインデックス 
+constexpr GLuint wireCubeIndex[] =
+{
+  1, 0, // (a) 
+  2, 7, // (b) 
+  3, 0, // (c) 
+  4, 7, // (d) 
+  5, 0, // (e) 
+  6, 7, // (f) 
+  1, 2, // (g) 
+  2, 3, // (h) 
+  3, 4, // (i) 
+  4, 5, // (j) 
+  5, 6, // (k) 
+  6, 1  // (l) 
+};
+
 
 int main()
 {
@@ -208,7 +256,7 @@ int main()
     const GLint projectionLoc(glGetUniformLocation(program, "projection"));
 
     // 図形データを作成する
-    std::unique_ptr<const Shape> shape(new Shape(2, 4, rectangleVertex));
+    std::unique_ptr<const Shape> shape(new ShapeIndex(3, 8, cubeVertex, 24, wireCubeIndex));
 
     // ウィンドウが開いている間繰り返す
     while (window)

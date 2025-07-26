@@ -3,7 +3,7 @@ uniform mat4 modelview;
 uniform mat4 projection;
 in vec4 position;
 in vec4 color;
-flat out vec4 vertex_color;
+out vec4 vertex_color;
 void main()
 {
 	vertex_color = color;

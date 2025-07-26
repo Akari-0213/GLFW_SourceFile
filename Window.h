@@ -76,9 +76,9 @@ public:
     // 描画ループの継続判定
     explicit operator bool()
     {
-        if (keyStatus == GLFW_RELEASE)
-            glfwWaitEvents();
-        else
+        //if (keyStatus == GLFW_RELEASE)
+        //    glfwWaitEvents();
+        //else
             // イベントを取り出す
             glfwPollEvents();
 

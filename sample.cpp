@@ -1,16 +1,20 @@
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #include <vector>
 #include <memory>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include "Window.h"
 #include "Matrix.h"
+#include "Vector_light.h"
 #include "Shape.h"
 #include "ShapeIndex.h"
 #include "SolidShape.h"
 #include "SolidShapeIndex.h"
+#include "Uniform.h"
+#include "Material.h"
 
 // シェーダオブジェクトのコンパイル結果を表示する
 //   shader: シェーダオブジェクト名
@@ -331,9 +335,80 @@ int main()
     const GLint modelviewLoc(glGetUniformLocation(program, "modelview"));
     const GLint projectionLoc(glGetUniformLocation(program, "projection"));
     const GLint normalMatrixLoc(glGetUniformLocation(program, "normalMatrix"));
+    const GLint LposLoc(glGetUniformLocation(program, "Lpos"));
+    const GLint LambLoc(glGetUniformLocation(program, "Lamb"));
+    const GLint LdiffLoc(glGetUniformLocation(program, "Ldiff"));
+    const GLint LspecLoc(glGetUniformLocation(program, "Lspec"));
+
+    // uniform block の場所を取得する
+    const GLint materialLoc(glGetUniformBlockIndex(program, "Material"));
+
+    // uniform block の場所を 0 番の結合ポイントに結びつける 
+    glUniformBlockBinding(program, materialLoc, 0);
+
+    //球の分割数
+    const int slices(16), stacks(8);
+
+    //頂点の属性を作る
+    std::vector<Object::Vertex> solidSphereVertex;
+    for (int j = 0; j <= stacks; ++j)
+    {
+        const float t(static_cast<float>(j) / static_cast<float>(stacks));
+        const float y(cos(3.141593f * t)), r(sin(3.141593f * t));
+
+        for (int i = 0; i <= slices; ++i)
+        {
+            const float s(static_cast<float>(i) / static_cast<float>(slices));
+            const float z(r * cos(6.283185f * s)), x(r * sin(6.283185f * s));
+
+            // 頂点属性 
+            const Object::Vertex v = { x, y, z, x, y, z };
+            // 頂点属性を追加する 
+            solidSphereVertex.emplace_back(v);
+        }
+    }
+
+
+    //インデックスを作る
+    std::vector<GLuint> solidSphereIndex;
+    for (int j = 0; j <= stacks; ++j)
+    {
+        const int k((slices + 1) * j);
+        for (int i = 0; i <= slices; ++i)
+        {
+            const GLuint k0(k + i);
+            const GLuint k1(k0 + 1);
+            const GLuint k2(k1 + slices);
+            const GLuint k3(k2 + 1);
+
+            // 左下の三角形 
+            solidSphereIndex.emplace_back(k0);
+            solidSphereIndex.emplace_back(k2);
+            solidSphereIndex.emplace_back(k3);
+            // 右上の三角形 
+            solidSphereIndex.emplace_back(k0);
+            solidSphereIndex.emplace_back(k3);
+            solidSphereIndex.emplace_back(k1);
+        }
+    }
 
     // 図形データを作成する
-    std::unique_ptr<const Shape> shape(new SolidShapeIndex(3, 36, solidCubeVertex, 36, solidCubeIndex));
+    std::unique_ptr<const Shape> shape(new SolidShapeIndex(3, static_cast<GLsizei>(solidSphereVertex.size()), solidSphereVertex.data(), static_cast<GLsizei>(solidSphereIndex.size()), solidSphereIndex.data()));
+
+    //光源データ
+    static constexpr int Lcount(2);
+    static constexpr Vector_light Lpos[] = { 0.0f, 0.0f, 5.0f, 1.0f, 10.0f, 0.0f, 0.0f, 1.0f };
+    static constexpr GLfloat Lamb[] = { 0.5f, 0.5f, 0.5f, 0.1f, 0.1f, 0.1f };
+    static constexpr GLfloat Ldiff[] = { 1.0f, 0.5f, 0.5f, 0.9f, 0.9f, 0.9f };
+    static constexpr GLfloat Lspec[] = { 1.0f, 0.5f, 0.5f,  0.9f, 0.9f, 0.9f };
+
+    static constexpr Material color[] =
+    {
+        { 0.5f, 0.5f, 0.5f,  0.6f, 0.6f, 0.2f,  0.3f, 0.3f, 0.3f,  30.0f },
+        { 0.5f, 0.5f, 0.5f,  0.1f, 0.1f, 0.5f,  0.4f, 0.4f, 0.4f,  100.0f }
+    };
+
+    const Uniform<Material> material(color, 2);
 
     //タイマーを0にセット
     glfwSetTime(0.0);
@@ -379,7 +454,13 @@ int main()
         glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.data());
         glUniformMatrix4fv(modelviewLoc, 1, GL_FALSE, modelview.data());
         glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, normalMatrix);
+        for(int i = 0; i < Lcount; ++i)
+            glUniform4fv(LposLoc + i, 1, (view * Lpos[i]).data());
+        glUniform3fv(LambLoc, Lcount, Lamb);
+        glUniform3fv(LdiffLoc, Lcount, Ldiff);
+        glUniform3fv(LspecLoc, Lcount, Lamb);
 
+        material.select(0, 0);
         // 図形を描画する
         shape->draw();
 
@@ -389,6 +470,7 @@ int main()
         modelview1.getNormalMatrix(normalMatrix);
         glUniformMatrix4fv(modelviewLoc, 1, GL_FALSE, modelview1.data());
         glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, normalMatrix);
+        material.select(0, 1);
         shape->draw();
 
         // カラーバッファを入れ替えてイベントを取り出す

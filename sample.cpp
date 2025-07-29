@@ -3,6 +3,7 @@
 #include <fstream>
 #include <cmath>
 #include <vector>
+#include <map>
 #include <memory>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -15,6 +16,7 @@
 #include "SolidShapeIndex.h"
 #include "Uniform.h"
 #include "Material.h"
+#include "Load_ObjFile.cpp"
 
 // シェーダオブジェクトのコンパイル結果を表示する
 //   shader: シェーダオブジェクト名
@@ -292,7 +294,6 @@ constexpr GLuint solidCubeIndex[] =
 };
 
 
-
 int main()
 {
     // GLFW を初期化する
@@ -314,6 +315,53 @@ int main()
 
     // ウィンドウを作成する
     Window window;
+
+    //オブジェクトロード
+    Load_ObjFile obj;
+    string file_name = "chiikawa.obj";
+    obj.FileScan(file_name);
+
+    vector<Object::Vertex> ObjVertices;
+    vector<GLuint> ObjIndices;
+    map<tuple<int, int, int>, GLuint> VertexMap;
+    for (const auto& face : obj.obj_faces) {
+        if (face.size() < 3) continue;
+        for (size_t i = 1; i < face.size() - 1; ++i) {
+            array<size_t, 3> triangleIndices = { 0, i, i + 1 };
+            for (size_t j = 0; j < 3; ++j) {
+                const FaceVertex& fv = face[triangleIndices[j]];
+
+                auto key = make_tuple(fv.vertex_index, fv.texCoord_index, fv.normal_index);
+                auto it = VertexMap.find(key);
+                if (it != VertexMap.end()) {
+                    ObjIndices.push_back(it->second);
+                }
+                else {
+                    if (fv.vertex_index < 0 || fv.vertex_index >= obj.vertices.size()) {
+                        cout << "Invalid vertex index" << endl;
+                        continue;
+                    }
+                    glm::vec3 pos = obj.vertices[fv.vertex_index].vertex_position;
+
+                    glm::vec3 normal(0.0f, 1.0f, 0.0f);
+                    if (fv.normal_index >= 0 && fv.normal_index < obj.normals.size())
+                    {
+                        normal = obj.normals[fv.normal_index].normal_vector;
+                    }
+
+                    Object::Vertex vertex = {
+                        pos.x, pos.y, pos.z,
+                        normal.x, normal.y, normal.z
+                    };
+
+                    GLuint newIndex = static_cast<GLuint>(ObjVertices.size());
+                    ObjVertices.push_back(vertex);
+                    ObjIndices.push_back(newIndex);
+                    VertexMap[key] = newIndex;
+                }
+            }
+        }
+    }
 
     // 背景色を指定する
     glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
@@ -349,51 +397,51 @@ int main()
     //球の分割数
     const int slices(16), stacks(8);
 
-    //頂点の属性を作る
-    std::vector<Object::Vertex> solidSphereVertex;
-    for (int j = 0; j <= stacks; ++j)
-    {
-        const float t(static_cast<float>(j) / static_cast<float>(stacks));
-        const float y(cos(3.141593f * t)), r(sin(3.141593f * t));
+    ////頂点の属性を作る
+    //std::vector<Object::Vertex> solidSphereVertex;
+    //for (int j = 0; j <= stacks; ++j)
+    //{
+    //    const float t(static_cast<float>(j) / static_cast<float>(stacks));
+    //    const float y(cos(3.141593f * t)), r(sin(3.141593f * t));
 
-        for (int i = 0; i <= slices; ++i)
-        {
-            const float s(static_cast<float>(i) / static_cast<float>(slices));
-            const float z(r * cos(6.283185f * s)), x(r * sin(6.283185f * s));
+    //    for (int i = 0; i <= slices; ++i)
+    //    {
+    //        const float s(static_cast<float>(i) / static_cast<float>(slices));
+    //        const float z(r * cos(6.283185f * s)), x(r * sin(6.283185f * s));
 
-            // 頂点属性 
-            const Object::Vertex v = { x, y, z, x, y, z };
-            // 頂点属性を追加する 
-            solidSphereVertex.emplace_back(v);
-        }
-    }
+    //        // 頂点属性 
+    //        const Object::Vertex v = { x, y, z, x, y, z };
+    //        // 頂点属性を追加する 
+    //        solidSphereVertex.emplace_back(v);
+    //    }
+    //}
 
 
-    //インデックスを作る
-    std::vector<GLuint> solidSphereIndex;
-    for (int j = 0; j <= stacks; ++j)
-    {
-        const int k((slices + 1) * j);
-        for (int i = 0; i <= slices; ++i)
-        {
-            const GLuint k0(k + i);
-            const GLuint k1(k0 + 1);
-            const GLuint k2(k1 + slices);
-            const GLuint k3(k2 + 1);
+    ////インデックスを作る
+    //std::vector<GLuint> solidSphereIndex;
+    //for (int j = 0; j <= stacks; ++j)
+    //{
+    //    const int k((slices + 1) * j);
+    //    for (int i = 0; i <= slices; ++i)
+    //    {
+    //        const GLuint k0(k + i);
+    //        const GLuint k1(k0 + 1);
+    //        const GLuint k2(k1 + slices);
+    //        const GLuint k3(k2 + 1);
 
-            // 左下の三角形 
-            solidSphereIndex.emplace_back(k0);
-            solidSphereIndex.emplace_back(k2);
-            solidSphereIndex.emplace_back(k3);
-            // 右上の三角形 
-            solidSphereIndex.emplace_back(k0);
-            solidSphereIndex.emplace_back(k3);
-            solidSphereIndex.emplace_back(k1);
-        }
-    }
+    //        // 左下の三角形 
+    //        solidSphereIndex.emplace_back(k0);
+    //        solidSphereIndex.emplace_back(k2);
+    //        solidSphereIndex.emplace_back(k3);
+    //        // 右上の三角形 
+    //        solidSphereIndex.emplace_back(k0);
+    //        solidSphereIndex.emplace_back(k3);
+    //        solidSphereIndex.emplace_back(k1);
+    //    }
+    //}
 
     // 図形データを作成する
-    std::unique_ptr<const Shape> shape(new SolidShapeIndex(3, static_cast<GLsizei>(solidSphereVertex.size()), solidSphereVertex.data(), static_cast<GLsizei>(solidSphereIndex.size()), solidSphereIndex.data()));
+    std::unique_ptr<const Shape> shape(new SolidShapeIndex(3, static_cast<GLsizei>(ObjVertices.size()), ObjVertices.data(), static_cast<GLsizei>(ObjIndices.size()), ObjIndices.data()));
 
     //光源データ
     static constexpr int Lcount(2);
@@ -475,5 +523,6 @@ int main()
 
         // カラーバッファを入れ替えてイベントを取り出す
         window.swapBuffers();
+
     }
 }

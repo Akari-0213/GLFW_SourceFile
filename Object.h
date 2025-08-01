@@ -21,6 +21,9 @@ public:
 
 		//法線
 		GLfloat normal[3];
+
+		//テクスチャ
+		GLfloat texcoord[2];
 	};
 
 	////コンストラクタ
@@ -49,6 +52,10 @@ public:
 		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
 			static_cast<Vertex*>(0)->normal);
 		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+			static_cast<Vertex*>(0)->texcoord);
+		glEnableVertexAttribArray(2);
+
 
 		//インデックスの頂点バッファオブジェクト
 		glGenBuffers(1, &ibo);

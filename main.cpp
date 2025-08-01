@@ -17,6 +17,8 @@
 #include "Uniform.h"
 #include "Material.h"
 #include "Load_ObjFile.cpp"
+#include "Load_Texture.h"
+
 
 // シェーダオブジェクトのコンパイル結果を表示する
 //   shader: シェーダオブジェクト名
@@ -106,6 +108,7 @@ GLuint createProgram(const char* vsrc, const char* fsrc)
     // プログラムオブジェクトをリンクする
     glBindAttribLocation(program, 0, "position");
     glBindAttribLocation(program, 1, "normal");
+    glBindAttribLocation(program, 2, "texcoord");
     glBindFragDataLocation(program, 0, "fragment");
     glLinkProgram(program);
 
@@ -349,9 +352,17 @@ int main()
                         normal = obj.normals[fv.normal_index].normal_vector;
                     }
 
+
+                    glm::vec2 texcoord(0.0f, 0.0f);
+                    if (fv.texCoord_index>= 0 && fv.texCoord_index < obj.texcoords.size())
+                    {
+                        texcoord = obj.texcoords[fv.texCoord_index].texcoord;
+                    }
+
                     Object::Vertex vertex = {
                         pos.x, pos.y, pos.z,
-                        normal.x, normal.y, normal.z
+                        normal.x, normal.y, normal.z,
+                        texcoord.x, texcoord.y
                     };
 
                     GLuint newIndex = static_cast<GLuint>(ObjVertices.size());
@@ -362,6 +373,13 @@ int main()
             }
         }
     }
+
+    GLuint ObjTexture = Load_PNG_Texture("chiikawa_face.png");
+    if (ObjTexture == 0) {
+        cout << "Faild to load Texture" << endl;
+        return 0;
+    }    
+
 
     // 背景色を指定する
     glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
@@ -387,6 +405,8 @@ int main()
     const GLint LambLoc(glGetUniformLocation(program, "Lamb"));
     const GLint LdiffLoc(glGetUniformLocation(program, "Ldiff"));
     const GLint LspecLoc(glGetUniformLocation(program, "Lspec"));
+    const GLint TexLoc = glGetUniformLocation(program, "tex");
+
 
     // uniform block の場所を取得する
     const GLint materialLoc(glGetUniformBlockIndex(program, "Material"));
@@ -452,8 +472,8 @@ int main()
 
     static constexpr Material color[] =
     {
-        { 0.5f, 0.5f, 0.5f,  0.6f, 0.6f, 0.2f,  0.3f, 0.3f, 0.3f,  30.0f },
-        { 0.5f, 0.5f, 0.5f,  0.1f, 0.1f, 0.5f,  0.4f, 0.4f, 0.4f,  100.0f }
+        { 0.5f, 0.5f, 0.5f,  0.9f, 0.9f, 0.9f,  0.3f, 0.3f, 0.3f,  30.0f },
+        { 0.5f, 0.5f, 0.5f,  0.9f, 0.9f, 0.9f,  0.4f, 0.4f, 0.4f,  100.0f }
     };
 
     const Uniform<Material> material(color, 2);
@@ -469,6 +489,7 @@ int main()
 
         // シェーダプログラムの使用開始
         glUseProgram(program);
+
 
         //透視投変換行列を求める
         const GLfloat* const size(window.getSize());
@@ -507,6 +528,12 @@ int main()
         glUniform3fv(LambLoc, Lcount, Lamb);
         glUniform3fv(LdiffLoc, Lcount, Ldiff);
         glUniform3fv(LspecLoc, Lcount, Lamb);
+        glUniform1i(TexLoc, 0);
+
+        //テクスチャをバインドする
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ObjTexture);
+
 
         material.select(0, 0);
         // 図形を描画する
@@ -525,4 +552,6 @@ int main()
         window.swapBuffers();
 
     }
+
+    glDeleteTextures(1, &ObjTexture);
 }

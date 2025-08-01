@@ -4,6 +4,7 @@ uniform vec4 Lpos[Lcount];
 uniform vec3 Lamb[Lcount]; 
 uniform vec3 Ldiff[Lcount]; 
 uniform vec3 Lspec[Lcount];
+uniform sampler2D tex;
 
 layout (std140) uniform Material
 {
@@ -11,12 +12,15 @@ layout (std140) uniform Material
 	vec3 Kdiff; 
 	vec3 Kspec; 
 	float Kshi; 
+
 };
 
 
 in vec4 P;
 in vec3 N;
+in vec4 TexCoord;
 out vec4 fragment;
+
 
 void main()
 {
@@ -31,6 +35,7 @@ void main()
 		vec3 H = normalize(L + V);
 		Ispec += pow(max(dot(normalize(N), H), 0.0), Kshi) * Kspec * Lspec[i];
    }
+   vec4 texture_color = textureProj(tex, TexCoord);
+   fragment = vec4(Ispec + Idiff* texture_color.rgb, 1.0);
 
-   fragment = vec4(Idiff + Ispec, 1.0);
 }

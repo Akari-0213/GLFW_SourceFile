@@ -51,7 +51,7 @@ public:
 				string prefix;
 				float u, v;
 				if (iss >> prefix >> u >> v) {
-					texcoords.push_back(Texcoord(glm::vec2(u, v)));
+					texcoords.push_back(Texcoord(glm::vec2(u, 1.0f - v)));
 				}
 			}
 			else if (line.find("f ") == 0) {

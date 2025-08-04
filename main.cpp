@@ -16,9 +16,9 @@
 #include "SolidShapeIndex.h"
 #include "Uniform.h"
 #include "Material.h"
-#include "Load_ObjFile.cpp"
+#include "Load_ObjFile.h"
 #include "Load_Texture.h"
-
+#include "ModelData.h"
 
 // シェーダオブジェクトのコンパイル結果を表示する
 //   shader: シェーダオブジェクト名
@@ -306,6 +306,14 @@ int main()
         std::cerr << "Can't initialize GLFW" << std::endl;
         return 1;
     }
+    glewExperimental = GL_TRUE;
+    // GLEW を初期化する
+    if (glewInit() == GL_FALSE)
+    {
+        // 初期化に失敗した
+        std::cerr << "Can't initialize GLEW" << std::endl;
+        return 1;
+    }
 
     // プログラム終了時の処理を登録する
     atexit(glfwTerminate);
@@ -319,9 +327,23 @@ int main()
     // ウィンドウを作成する
     Window window;
 
+
+    vector<unique_ptr<ModelData>> models;
+    
+    auto model1 = make_unique<ModelData>();
+    model1->ModelLoad("chiikawa.obj", "chiikawa_face.png");
+    model1->model_st.transform = Matrix::translate(0.0f, 0.0f, 0.0f);
+    models.push_back(move(model1));
+
+
+    auto model2 = make_unique<ModelData>();
+    model2->ModelLoad("chiikawa_car.obj", "chiikawa_car_color.png");
+    model2->model_st.transform = Matrix::translate(0.0f, 0.0f, 0.0f);
+    models.push_back(move(model2));
+
     //オブジェクトロード
-    Load_ObjFile obj;
-    string file_name = "chiikawa.obj";
+/*    Load_ObjFile obj;
+    string file_name = "chiikawa_car.obj";
     obj.FileScan(file_name);
 
     vector<Object::Vertex> ObjVertices;
@@ -374,11 +396,11 @@ int main()
         }
     }
 
-    GLuint ObjTexture = Load_PNG_Texture("chiikawa_face.png");
+    GLuint ObjTexture = Load_PNG_Texture("chiikawa_car_color.png");
     if (ObjTexture == 0) {
         cout << "Faild to load Texture" << endl;
         return 0;
-    }    
+    }  */  
 
 
     // 背景色を指定する
@@ -461,7 +483,7 @@ int main()
     //}
 
     // 図形データを作成する
-    std::unique_ptr<const Shape> shape(new SolidShapeIndex(3, static_cast<GLsizei>(ObjVertices.size()), ObjVertices.data(), static_cast<GLsizei>(ObjIndices.size()), ObjIndices.data()));
+   /* std::unique_ptr<const Shape> shape(new SolidShapeIndex(3, static_cast<GLsizei>(ObjVertices.size()), ObjVertices.data(), static_cast<GLsizei>(ObjIndices.size()), ObjIndices.data()));*/
 
     //光源データ
     static constexpr int Lcount(2);
@@ -497,32 +519,29 @@ int main()
         const GLfloat aspect(size[0] / size[1]);
         const Matrix projection(Matrix::perspective(fovy, aspect, 1.0f, 10.0f));
 
-
         //平行移動の変換行列を求める
         const GLfloat* const position(window.getLocation());
         const Matrix translation(Matrix::translate(position[0], position[1], 0.0f));
 
         //モデルの変換行列を求める
         const GLfloat* const location(window.getLocation());
-        const Matrix r(Matrix::rotate(static_cast<GLfloat>(glfwGetTime()), 0.0f, 1.0f, 0.0f));
-        const Matrix model(Matrix::translate(location[0], location[1], 0.0f) * r);
+        //const Matrix r(Matrix::rotate(static_cast<GLfloat>(glfwGetTime()), 0.0f, 1.0f, 0.0f));
+        //const Matrix model_trans(Matrix::translate(location[0], location[1], 0.0f) * r);
 
         //ビュー変換行列を求める
         const Matrix view(Matrix::lookat(3.0f, 4.0f, 5.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f));
 
         //法線ベクトルの変換行列の格納先
-        GLfloat normalMatrix[9];
+        //GLfloat normalMatrix[9];
 
         //モデルビュー変換行列を求める
-        const Matrix modelview(view * model);
+   /*     const Matrix modelview(view * model_trans);*/
 
         //モデルビューから 法線ベクトルの変換行列を求める 
-        modelview.getNormalMatrix(normalMatrix);
+   /*     modelview.getNormalMatrix(normalMatrix);*/
 
         // uniform 変数に値を設定する
         glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.data());
-        glUniformMatrix4fv(modelviewLoc, 1, GL_FALSE, modelview.data());
-        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, normalMatrix);
         for(int i = 0; i < Lcount; ++i)
             glUniform4fv(LposLoc + i, 1, (view * Lpos[i]).data());
         glUniform3fv(LambLoc, Lcount, Lamb);
@@ -530,28 +549,50 @@ int main()
         glUniform3fv(LspecLoc, Lcount, Lamb);
         glUniform1i(TexLoc, 0);
 
-        //テクスチャをバインドする
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, ObjTexture);
+
+        for (size_t i = 0; i < models.size(); ++i)
+        {
+            const ModelData& model = *models[i];
+            
+            Matrix rotation = Matrix::rotate(static_cast<GLfloat>(glfwGetTime()), 0.0f, 1.0f, 0.0f);
+            Matrix modelMatrix = Matrix::translate(location[0], location[1], 0.0f) * rotation;
+
+            //モデルビュー変換行列を求める
+            const Matrix modelview(view * modelMatrix);
+
+            //法線ベクトルの変換行列の格納先
+            GLfloat normalMatrix[9];
+            modelview.getNormalMatrix(normalMatrix);
 
 
-        material.select(0, 0);
-        // 図形を描画する
-        shape->draw();
+            glUniformMatrix4fv(modelviewLoc, 1, GL_FALSE, modelview.data());
+            glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, normalMatrix);
 
 
-        //二つ目の図形描画
-        const Matrix modelview1(modelview * Matrix::translate(0.0f, 0.0f, 3.0f));
-        modelview1.getNormalMatrix(normalMatrix);
-        glUniformMatrix4fv(modelviewLoc, 1, GL_FALSE, modelview1.data());
-        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, normalMatrix);
-        material.select(0, 1);
-        shape->draw();
+            //テクスチャをバインドする
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, model.model_st.texture);
+
+
+            material.select(0, i);
+            // 図形を描画する
+            model.model_st.shape->draw();
+
+        }
+
+
+
+        ////二つ目の図形描画
+        //const Matrix modelview1(modelview * Matrix::translate(0.0f, 0.0f, 3.0f));
+        //modelview1.getNormalMatrix(normalMatrix);
+        //glUniformMatrix4fv(modelviewLoc, 1, GL_FALSE, modelview1.data());
+        //glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, normalMatrix);
+        //material.select(0, 1);
+        //shape->draw();
 
         // カラーバッファを入れ替えてイベントを取り出す
         window.swapBuffers();
 
     }
-
-    glDeleteTextures(1, &ObjTexture);
+    
 }

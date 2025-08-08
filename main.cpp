@@ -19,6 +19,10 @@
 #include "Load_ObjFile.h"
 #include "Load_Texture.h"
 #include "ModelData.h"
+#include "ModelData_static.h"
+
+#define PI 3.14159
+#define TimeStep 0.1f
 
 // シェーダオブジェクトのコンパイル結果を表示する
 //   shader: シェーダオブジェクト名
@@ -329,7 +333,8 @@ int main()
 
 
     vector<unique_ptr<ModelData>> models;
-    
+    vector<unique_ptr<ModelData_static>> static_models;
+
     auto model1 = make_unique<ModelData>();
     model1->ModelLoad("chiikawa.obj", "chiikawa_face.png");
     model1->model_st.transform = Matrix::translate(0.0f, 0.0f, 0.0f);
@@ -340,6 +345,17 @@ int main()
     model2->ModelLoad("chiikawa_car.obj", "chiikawa_car_color.png");
     model2->model_st.transform = Matrix::translate(0.0f, 0.0f, 0.0f);
     models.push_back(move(model2));
+
+    auto model_static1 = make_unique<ModelData_static>();
+    model_static1->ModelLoad("chiikawa_lawn.obj", "lawn.png");
+    model_static1->model_st.transform = Matrix::translate(0.0f, 0.0f, 0.0f);
+    static_models.push_back(move(model_static1));
+
+
+    GLfloat groupPosition[3] = { 0.0f, 0.0f, 0.0f };
+    GLfloat groupRotationAngle = 0.0f;
+
+    
 
     //オブジェクトロード
 /*    Load_ObjFile obj;
@@ -483,11 +499,11 @@ int main()
     //}
 
     // 図形データを作成する
-   /* std::unique_ptr<const Shape> shape(new SolidShapeIndex(3, static_cast<GLsizei>(ObjVertices.size()), ObjVertices.data(), static_cast<GLsizei>(ObjIndices.size()), ObjIndices.data()));*/
+   /*std::unique_ptr<const Shape> shape(new SolidShapeIndex(3, static_cast<GLsizei>(ObjVertices.size()), ObjVertices.data(), static_cast<GLsizei>(ObjIndices.size()), ObjIndices.data()));*/
 
     //光源データ
     static constexpr int Lcount(2);
-    static constexpr Vector_light Lpos[] = { 0.0f, 0.0f, 5.0f, 1.0f, 10.0f, 0.0f, 0.0f, 1.0f };
+    static constexpr Vector_light Lpos[] = { 0.0f, 0.0f, 10.0f, 1.0f, 10.0f, 0.0f, 0.0f, 1.0f };
     static constexpr GLfloat Lamb[] = { 0.5f, 0.5f, 0.5f, 0.1f, 0.1f, 0.1f };
     static constexpr GLfloat Ldiff[] = { 1.0f, 0.5f, 0.5f, 0.9f, 0.9f, 0.9f };
     static constexpr GLfloat Lspec[] = { 1.0f, 0.5f, 0.5f,  0.9f, 0.9f, 0.9f };
@@ -498,7 +514,12 @@ int main()
         { 0.5f, 0.5f, 0.5f,  0.9f, 0.9f, 0.9f,  0.4f, 0.4f, 0.4f,  100.0f }
     };
 
-    const Uniform<Material> material(color, 2);
+    const Uniform<Material> material(color, 3);
+
+    const float cameraDistance = 5.0f;
+    const float cameraHeight = 3.0f;
+    const float cameraAngle = 0.0f; //+3.14fでカメラ正面回転
+
 
     //タイマーを0にセット
     glfwSetTime(0.0);
@@ -512,12 +533,31 @@ int main()
         // シェーダプログラムの使用開始
         glUseProgram(program);
 
+        GLFWwindow* glfw_window = window.getWindow();
+        if (glfwGetKey(glfw_window, GLFW_KEY_W) != GLFW_RELEASE)
+        {
+            groupPosition[2] -= cos(groupRotationAngle) * TimeStep;
+            groupPosition[0] -= sin(groupRotationAngle) * TimeStep;
+        }
+        else if (glfwGetKey(glfw_window, GLFW_KEY_S) != GLFW_RELEASE)
+        {
+            groupPosition[2] += cos(groupRotationAngle) * TimeStep;
+            groupPosition[0] += sin(groupRotationAngle) * TimeStep;
+        }
+        if (glfwGetKey(glfw_window, GLFW_KEY_A) != GLFW_RELEASE)
+            groupRotationAngle += TimeStep * 0.1f;
+        else if (glfwGetKey(glfw_window, GLFW_KEY_D) != GLFW_RELEASE)
+            groupRotationAngle -= TimeStep * 0.1f;
 
+
+        const float cameraX = groupPosition[0] + cameraDistance * sin(cameraAngle);
+        const float cameraZ = groupPosition[2] + cameraDistance * cos(cameraAngle);
+        const float cameraY = groupPosition[1] + cameraHeight;
         //透視投変換行列を求める
         const GLfloat* const size(window.getSize());
         const GLfloat fovy(window.getScale() * 0.01f);
         const GLfloat aspect(size[0] / size[1]);
-        const Matrix projection(Matrix::perspective(fovy, aspect, 1.0f, 10.0f));
+        const Matrix projection(Matrix::perspective(fovy, aspect, 1.0f, 50.0f));
 
         //平行移動の変換行列を求める
         const GLfloat* const position(window.getLocation());
@@ -529,7 +569,7 @@ int main()
         //const Matrix model_trans(Matrix::translate(location[0], location[1], 0.0f) * r);
 
         //ビュー変換行列を求める
-        const Matrix view(Matrix::lookat(3.0f, 4.0f, 5.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f));
+        const Matrix view(Matrix::lookat(cameraX, cameraY, cameraZ, groupPosition[0], groupPosition[1], groupPosition[2], 0.0f, 1.0f, 0.0f));
 
         //法線ベクトルの変換行列の格納先
         //GLfloat normalMatrix[9];
@@ -554,8 +594,8 @@ int main()
         {
             const ModelData& model = *models[i];
             
-            Matrix rotation = Matrix::rotate(static_cast<GLfloat>(glfwGetTime()), 0.0f, 1.0f, 0.0f);
-            Matrix modelMatrix = Matrix::translate(location[0], location[1], 0.0f) * rotation;
+            Matrix rotation = Matrix::rotate(static_cast<GLfloat>(groupRotationAngle), 0.0f, 1.0f, 0.0f);
+            Matrix modelMatrix = Matrix::translate(groupPosition[0], groupPosition[1], groupPosition[2]) * rotation;
 
             //モデルビュー変換行列を求める
             const Matrix modelview(view * modelMatrix);
@@ -580,8 +620,35 @@ int main()
 
         }
 
+        for (size_t i = 0; i < static_models.size(); ++i)
+        {
+            const ModelData_static& static_model = *static_models[i];
+
+            //Matrix rotation = Matrix::rotate(static_cast<GLfloat>(glfwGetTime()), 0.0f, 1.0f, 0.0f);
+            Matrix static_modelMatrix = Matrix::translate(0.0f, 0.0f, 0.0f);
+
+            //モデルビュー変換行列を求める
+            const Matrix static_modelview(view * static_modelMatrix);
+
+            //法線ベクトルの変換行列の格納先
+            GLfloat normalMatrix[9];
+            static_modelview.getNormalMatrix(normalMatrix);
 
 
+            glUniformMatrix4fv(modelviewLoc, 1, GL_FALSE, static_modelview.data());
+            glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, normalMatrix);
+
+
+            //テクスチャをバインドする
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, static_model.model_st.texture);
+
+
+            material.select(0, i);
+            // 図形を描画する
+            static_model.model_st.shape->draw();
+
+        }
         ////二つ目の図形描画
         //const Matrix modelview1(modelview * Matrix::translate(0.0f, 0.0f, 3.0f));
         //modelview1.getNormalMatrix(normalMatrix);

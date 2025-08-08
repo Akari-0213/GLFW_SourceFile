@@ -5,6 +5,7 @@
 
 class Window
 {
+    int selected_obj;
     // ウィンドウの識別子
     GLFWwindow* const window;
 
@@ -19,7 +20,6 @@ class Window
 
     //キーボードの状態
     int keyStatus;
-
 
 public:
 
@@ -169,7 +169,7 @@ public:
         }
 
     }
-
+    GLFWwindow* getWindow() const { return window; }
 
     // ウィンドウのサイズを取り出す
     const GLfloat* getSize() const { return size; }

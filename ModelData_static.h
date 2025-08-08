@@ -10,7 +10,7 @@
 using namespace std;
 
 
-class ModelData {
+class ModelData_static {
 
 public:
 
@@ -23,13 +23,13 @@ public:
     ModelData_struct model_st;
 
 public:
-    ModelData();
-    virtual ~ModelData();
+    ModelData_static();
+    virtual ~ModelData_static();
     void ModelLoad(const string& objFileName, const char* TextureFileName);
 
 private:
     //コピーインストラクタによるコピー禁止
-    ModelData(const  ModelData& m) = delete;
+    ModelData_static(const  ModelData_static& m) = delete;
     //代入によるコピー禁止
-    ModelData& operator=(const ModelData& m) = delete;
+    ModelData_static& operator=(const ModelData_static& m) = delete;
 };

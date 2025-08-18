@@ -20,6 +20,7 @@
 #include "Load_Texture.h"
 #include "ModelData.h"
 #include "ModelData_static.h"
+#include "ParticleSystem.h"
 
 #define PI 3.14159
 #define TimeStep 0.1f
@@ -125,6 +126,60 @@ GLuint createProgram(const char* vsrc, const char* fsrc)
     return 0;
 }
 
+
+// プログラムオブジェクトを作成する
+//   vsrc: バーテックスシェーダのソースプログラムの文字列
+//   fsrc: フラグメントシェーダのソースプログラムの文字列
+GLuint createParticleProgram(const char* vsrc, const char* fsrc)
+{
+    // 空のプログラムオブジェクトを作成する
+    const GLuint program(glCreateProgram());
+
+    if (vsrc != NULL)
+    {
+        // バーテックスシェーダのシェーダオブジェクトを作成する
+        const GLuint vobj(glCreateShader(GL_VERTEX_SHADER));
+        glShaderSource(vobj, 1, &vsrc, NULL);
+        glCompileShader(vobj);
+
+        // バーテックスシェーダのシェーダオブジェクトをプログラムオブジェクトに組み込む
+        if (printShaderInfoLog(vobj, "vertex shader"))
+            glAttachShader(program, vobj);
+        glDeleteShader(vobj);
+    }
+
+    if (fsrc != NULL)
+    {
+        // フラグメントシェーダのシェーダオブジェクトを作成する
+        const GLuint fobj(glCreateShader(GL_FRAGMENT_SHADER));
+        glShaderSource(fobj, 1, &fsrc, NULL);
+        glCompileShader(fobj);
+
+        // フラグメントシェーダのシェーダオブジェクトをプログラムオブジェクトに組み込む
+        if (printShaderInfoLog(fobj, "fragment shader"))
+            glAttachShader(program, fobj);
+        glDeleteShader(fobj);
+    }
+
+    // プログラムオブジェクトをリンクする
+    glBindAttribLocation(program, 0, "vertex_position");
+    glBindAttribLocation(program, 1, "instance_position");
+    glBindAttribLocation(program, 2, "instance_color");
+    glBindAttribLocation(program, 3, "instance_size");
+    glBindAttribLocation(program, 4, "instance_rotation");
+    glBindFragDataLocation(program, 0, "fragment");
+    glLinkProgram(program);
+
+    // 作成したプログラムオブジェクトを返す
+    if (printProgramInfoLog(program))
+        return program;
+
+    // プログラムオブジェクトが作成できなければ 0 を返す
+    glDeleteProgram(program);
+    return 0;
+}
+
+
 // シェーダのソースファイルを読み込む
 //   name: シェーダのソースファイル名
 //   buffer: 読み込んだソースファイルのテキスト
@@ -182,131 +237,48 @@ GLuint loadProgram(const char* vert, const char* frag)
     return vstat && fstat ? createProgram(vsrc.data(), fsrc.data()) : 0;
 }
 
-// 矩形の頂点の位置
-constexpr Object::Vertex rectangleVertex[] =
+
+GLuint loadParticleProgram(const char* vert, const char* frag)
 {
-  { -0.5f, -0.5f },
-  {  0.5f, -0.5f },
-  {  0.5f,  0.5f },
-  { -0.5f,  0.5f }
-};
+    // シェーダのソースファイルを読み込む
+    std::vector<GLchar> vsrc_particle;
+    const bool vstat(readShaderSource(vert, vsrc_particle));
+    std::vector<GLchar> fsrc_particle;
+    const bool fstat(readShaderSource(frag, fsrc_particle));
 
-constexpr Object::Vertex octanhedronVertex[] =
+    // プログラムオブジェクトを作成する
+    return vstat && fstat ? createParticleProgram(vsrc_particle.data(), fsrc_particle.data()) : 0;
+}
+
+
+void drawParticle(ParticleSystem& particleSystem, GLfloat* groupPosition, const GLuint particle_program, float deltaTime,
+    const GLint particle_modelviewLoc, const GLint particle_projectionLoc, const Matrix view, const Matrix projection,
+    const GLint particle_TexLoc)
 {
-  {  0.0f,  1.0f,  0.0f },
-  { -1.0f,  0.0f,  0.0f },
-  {  0.0f,  -1.0f,  0.0f },
-  {  1.0f,  0.0f,  0.0f },
-  {  0.0f,  1.0f,  0.0f },
-  {  0.0f,  0.0f,  1.0f },
-  {  0.0f,  -1.0f,  0.0f },
-  {  0.0f,  0.0f,  -1.0f },
-  {  -1.0f,  0.0f,  0.0f },
-  {  0.0f,  0.0f,  1.0f },
-  {  1.0f,  0.0f,  0.0f },
-  {  0.0f,  0.0f,  -1.0f }
-};
+    
 
-constexpr Object::Vertex cubeVertex[] =
-{
-  { -1.0f, -1.0f, -1.0f,  0.0f,  0.0f,  0.0f },  // (0) 
-  { -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  0.8f },  // (1) 
-  { -1.0f,  1.0f,  1.0f,  0.0f,  0.8f,  0.0f },  // (2) 
-  { -1.0f,  1.0f, -1.0f,  0.0f,  0.8f,  0.8f },  // (3) 
-  {  1.0f,  1.0f, -1.0f,  0.8f,  0.0f,  0.0f },  // (4) 
-  {  1.0f, -1.0f, -1.0f,  0.8f,  0.0f,  0.8f },  // (5) 
-  {  1.0f, -1.0f,  1.0f,  0.8f,  0.8f,  0.0f },  // (6) 
-  {  1.0f,  1.0f,  1.0f,  0.8f,  0.8f,  0.8f }   // (7) 
-};
+    // パーティクルエミッターの位置を車の位置に追従させる
+    particleSystem.setEmitterPosition(glm::vec3(0.0f, -1.0f, 2.0f));
 
-// 面ごとに法線を変えた六面体の頂点属性 
-constexpr Object::Vertex solidCubeVertex[] =
-{
-    // 左 
-   { -1.0f, -1.0f, -1.0f,  -1.0f,  0.0f,  0.0f },
-   { -1.0f, -1.0f,  1.0f,  -1.0f,  0.0f,  0.0f },
-   { -1.0f,  1.0f,  1.0f,  -1.0f,  0.0f,  0.0f },
-   { -1.0f, -1.0f, -1.0f,  -1.0f,  0.0f,  0.0f },
-   { -1.0f,  1.0f,  1.0f,  -1.0f,  0.0f,  0.0f },
-   { -1.0f,  1.0f, -1.0f,  -1.0f,  0.0f,  0.0f },
+    // パーティクルシステムを更新
+    particleSystem.Update(deltaTime);
+    glUseProgram(particle_program);
 
-    // 裏 
-    {  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f },
-    { -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f },
-    { -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f },
-    {  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f },
-    { -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f },
-    {  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f },
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, particleSystem.getTexture());
+    glUniform1f(particle_TexLoc, 0);
 
-    // 下 
-    { -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f },
-    {  1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f },
-    {  1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f },
-    { -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f },
-    {  1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f },
-    { -1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f },
-
-    // 右 
-    {  1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f },
-    {  1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f },
-    {  1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f },
-    {  1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f },
-    {  1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f },
-    {  1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f },
-
-     // 上 
-    { -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f },
-    { -1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f },
-    {  1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f },
-    { -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f },
-    {  1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f },
-    {  1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f },
-
-    // 前 
-    { -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f },
-    {  1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f },
-    {  1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f },
-    { -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f },
-    {  1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f },
-    { -1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f }
-};
-
-
-// 六面体の稜線の両端点のインデックス 
-constexpr GLuint wireCubeIndex[] =
-{
-  1, 0, // (a) 
-  2, 7, // (b) 
-  3, 0, // (c) 
-  4, 7, // (d) 
-  5, 0, // (e) 
-  6, 7, // (f) 
-  1, 2, // (g) 
-  2, 3, // (h) 
-  3, 4, // (i) 
-  4, 5, // (j) 
-  5, 6, // (k) 
-  6, 1  // (l) 
-};
-
-// 六面体の面を塗りつぶす三角形の頂点のインデックス 
-constexpr GLuint solidCubeIndex[] =
-{
-    0,  1,  2,  3,  4,  5, // 左 
-    6,  7,  8,  9, 10, 11, // 裏 
-    12, 13, 14, 15, 16, 17, // 下 
-    18, 19, 20, 21, 22, 23, // 右 
-    24, 25, 26, 27, 28, 29, // 上 
-    30, 31, 32, 33, 34, 35  // 前 
-};
-
+    // パーティクルの描画
+    glUniformMatrix4fv(particle_modelviewLoc, 1, GL_FALSE, view.data());
+    glUniformMatrix4fv(particle_projectionLoc, 1, GL_FALSE, projection.data());
+    particleSystem.Render();
+}
 
 int main()
 {
     // GLFW を初期化する
     if (glfwInit() == GL_FALSE)
     {
-        // 初期化に失敗した
         std::cerr << "Can't initialize GLFW" << std::endl;
         return 1;
     }
@@ -314,7 +286,6 @@ int main()
     // GLEW を初期化する
     if (glewInit() == GL_FALSE)
     {
-        // 初期化に失敗した
         std::cerr << "Can't initialize GLEW" << std::endl;
         return 1;
     }
@@ -331,7 +302,7 @@ int main()
     // ウィンドウを作成する
     Window window;
 
-
+    //モデル読み込み
     vector<unique_ptr<ModelData>> models;
     vector<unique_ptr<ModelData_static>> static_models;
 
@@ -347,76 +318,13 @@ int main()
     models.push_back(move(model2));
 
     auto model_static1 = make_unique<ModelData_static>();
-    model_static1->ModelLoad("chiikawa_lawn.obj", "lawn.png");
+    model_static1->ModelLoad("chiikawa_lawn.obj", "chiikawa_lawn.png");
     model_static1->model_st.transform = Matrix::translate(0.0f, 0.0f, 0.0f);
     static_models.push_back(move(model_static1));
-
 
     GLfloat groupPosition[3] = { 0.0f, 0.0f, 0.0f };
     GLfloat groupRotationAngle = 0.0f;
 
-    
-
-    //オブジェクトロード
-/*    Load_ObjFile obj;
-    string file_name = "chiikawa_car.obj";
-    obj.FileScan(file_name);
-
-    vector<Object::Vertex> ObjVertices;
-    vector<GLuint> ObjIndices;
-    map<tuple<int, int, int>, GLuint> VertexMap;
-    for (const auto& face : obj.obj_faces) {
-        if (face.size() < 3) continue;
-        for (size_t i = 1; i < face.size() - 1; ++i) {
-            array<size_t, 3> triangleIndices = { 0, i, i + 1 };
-            for (size_t j = 0; j < 3; ++j) {
-                const FaceVertex& fv = face[triangleIndices[j]];
-
-                auto key = make_tuple(fv.vertex_index, fv.texCoord_index, fv.normal_index);
-                auto it = VertexMap.find(key);
-                if (it != VertexMap.end()) {
-                    ObjIndices.push_back(it->second);
-                }
-                else {
-                    if (fv.vertex_index < 0 || fv.vertex_index >= obj.vertices.size()) {
-                        cout << "Invalid vertex index" << endl;
-                        continue;
-                    }
-                    glm::vec3 pos = obj.vertices[fv.vertex_index].vertex_position;
-
-                    glm::vec3 normal(0.0f, 1.0f, 0.0f);
-                    if (fv.normal_index >= 0 && fv.normal_index < obj.normals.size())
-                    {
-                        normal = obj.normals[fv.normal_index].normal_vector;
-                    }
-
-
-                    glm::vec2 texcoord(0.0f, 0.0f);
-                    if (fv.texCoord_index>= 0 && fv.texCoord_index < obj.texcoords.size())
-                    {
-                        texcoord = obj.texcoords[fv.texCoord_index].texcoord;
-                    }
-
-                    Object::Vertex vertex = {
-                        pos.x, pos.y, pos.z,
-                        normal.x, normal.y, normal.z,
-                        texcoord.x, texcoord.y
-                    };
-
-                    GLuint newIndex = static_cast<GLuint>(ObjVertices.size());
-                    ObjVertices.push_back(vertex);
-                    ObjIndices.push_back(newIndex);
-                    VertexMap[key] = newIndex;
-                }
-            }
-        }
-    }
-
-    GLuint ObjTexture = Load_PNG_Texture("chiikawa_car_color.png");
-    if (ObjTexture == 0) {
-        cout << "Faild to load Texture" << endl;
-        return 0;
-    }  */  
 
 
     // 背景色を指定する
@@ -434,6 +342,7 @@ int main()
 
     // プログラムオブジェクトを作成する
     const GLuint program(loadProgram("point.vert", "point.frag"));
+    const GLuint particle_program(loadParticleProgram("particle.vert", "particle.frag"));
 
     // uniform 変数の場所を取得する
     const GLint modelviewLoc(glGetUniformLocation(program, "modelview"));
@@ -446,60 +355,32 @@ int main()
     const GLint TexLoc = glGetUniformLocation(program, "tex");
 
 
+    const GLint particle_modelviewLoc(glGetUniformLocation(particle_program, "modelview"));
+    const GLint particle_projectionLoc(glGetUniformLocation(particle_program, "projection"));
+    const GLint particle_TexLoc = glGetUniformLocation(particle_program, "particle_texture");
+   
+
     // uniform block の場所を取得する
     const GLint materialLoc(glGetUniformBlockIndex(program, "Material"));
 
     // uniform block の場所を 0 番の結合ポイントに結びつける 
     glUniformBlockBinding(program, materialLoc, 0);
 
-    //球の分割数
-    const int slices(16), stacks(8);
 
-    ////頂点の属性を作る
-    //std::vector<Object::Vertex> solidSphereVertex;
-    //for (int j = 0; j <= stacks; ++j)
-    //{
-    //    const float t(static_cast<float>(j) / static_cast<float>(stacks));
-    //    const float y(cos(3.141593f * t)), r(sin(3.141593f * t));
+    ParticleSystem particleSystem(500);
+    particleSystem.Initialize();
+    // パーティクルエミッターの設定
+    particleSystem.setEmitterPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    particleSystem.setEmitterDirection(glm::vec3(0.0f, 1.0f, 0.0f));
+    particleSystem.setEmitterRate(20.0f); // 毎秒5個のパーティクル
+    particleSystem.setParticleLifeTime(1.0f); // 2秒間生存
+    particleSystem.setAirResistance(0.8f);
+    particleSystem.setGravity(9.8f);
+    GLuint particleTexture = Load_PNG_Texture("particle_lawn.png");
+    particleSystem.setTexture(particleTexture);
 
-    //    for (int i = 0; i <= slices; ++i)
-    //    {
-    //        const float s(static_cast<float>(i) / static_cast<float>(slices));
-    //        const float z(r * cos(6.283185f * s)), x(r * sin(6.283185f * s));
-
-    //        // 頂点属性 
-    //        const Object::Vertex v = { x, y, z, x, y, z };
-    //        // 頂点属性を追加する 
-    //        solidSphereVertex.emplace_back(v);
-    //    }
-    //}
-
-
-    ////インデックスを作る
-    //std::vector<GLuint> solidSphereIndex;
-    //for (int j = 0; j <= stacks; ++j)
-    //{
-    //    const int k((slices + 1) * j);
-    //    for (int i = 0; i <= slices; ++i)
-    //    {
-    //        const GLuint k0(k + i);
-    //        const GLuint k1(k0 + 1);
-    //        const GLuint k2(k1 + slices);
-    //        const GLuint k3(k2 + 1);
-
-    //        // 左下の三角形 
-    //        solidSphereIndex.emplace_back(k0);
-    //        solidSphereIndex.emplace_back(k2);
-    //        solidSphereIndex.emplace_back(k3);
-    //        // 右上の三角形 
-    //        solidSphereIndex.emplace_back(k0);
-    //        solidSphereIndex.emplace_back(k3);
-    //        solidSphereIndex.emplace_back(k1);
-    //    }
-    //}
-
-    // 図形データを作成する
-   /*std::unique_ptr<const Shape> shape(new SolidShapeIndex(3, static_cast<GLsizei>(ObjVertices.size()), ObjVertices.data(), static_cast<GLsizei>(ObjIndices.size()), ObjIndices.data()));*/
+    // デルタタイム計算用
+    double lastTime = glfwGetTime();
 
     //光源データ
     static constexpr int Lcount(2);
@@ -520,29 +401,40 @@ int main()
     const float cameraHeight = 3.0f;
     const float cameraAngle = 0.0f; //+3.14fでカメラ正面回転
 
-
-    //タイマーを0にセット
     glfwSetTime(0.0);
+    lastTime = glfwGetTime();
+
+    bool is_moveing = false;
 
     // ウィンドウが開いている間繰り返す
     while (window)
-    {
+
+    {   // デルタタイムを計算
+        double currentTime = glfwGetTime();
+        float deltaTime = static_cast<float>(currentTime - lastTime);
+        lastTime = currentTime;
+        is_moveing = false;
+
         // ウィンドウを消去する
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // シェーダプログラムの使用開始
         glUseProgram(program);
+       
 
         GLFWwindow* glfw_window = window.getWindow();
         if (glfwGetKey(glfw_window, GLFW_KEY_W) != GLFW_RELEASE)
         {
             groupPosition[2] -= cos(groupRotationAngle) * TimeStep;
             groupPosition[0] -= sin(groupRotationAngle) * TimeStep;
+            is_moveing = true;
+
         }
         else if (glfwGetKey(glfw_window, GLFW_KEY_S) != GLFW_RELEASE)
         {
             groupPosition[2] += cos(groupRotationAngle) * TimeStep;
             groupPosition[0] += sin(groupRotationAngle) * TimeStep;
+            is_moveing = true;
         }
         if (glfwGetKey(glfw_window, GLFW_KEY_A) != GLFW_RELEASE)
             groupRotationAngle += TimeStep * 0.1f;
@@ -565,21 +457,14 @@ int main()
 
         //モデルの変換行列を求める
         const GLfloat* const location(window.getLocation());
-        //const Matrix r(Matrix::rotate(static_cast<GLfloat>(glfwGetTime()), 0.0f, 1.0f, 0.0f));
-        //const Matrix model_trans(Matrix::translate(location[0], location[1], 0.0f) * r);
 
         //ビュー変換行列を求める
         const Matrix view(Matrix::lookat(cameraX, cameraY, cameraZ, groupPosition[0], groupPosition[1], groupPosition[2], 0.0f, 1.0f, 0.0f));
 
-        //法線ベクトルの変換行列の格納先
-        //GLfloat normalMatrix[9];
-
+        Matrix rotation = Matrix::rotate(static_cast<GLfloat>(groupRotationAngle), 0.0f, 1.0f, 0.0f);
+        Matrix modelMatrix = Matrix::translate(groupPosition[0], groupPosition[1], groupPosition[2]) * rotation;
         //モデルビュー変換行列を求める
-   /*     const Matrix modelview(view * model_trans);*/
-
-        //モデルビューから 法線ベクトルの変換行列を求める 
-   /*     modelview.getNormalMatrix(normalMatrix);*/
-
+        const Matrix modelview(view * modelMatrix);
         // uniform 変数に値を設定する
         glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.data());
         for(int i = 0; i < Lcount; ++i)
@@ -589,16 +474,11 @@ int main()
         glUniform3fv(LspecLoc, Lcount, Lamb);
         glUniform1i(TexLoc, 0);
 
-
         for (size_t i = 0; i < models.size(); ++i)
         {
             const ModelData& model = *models[i];
             
-            Matrix rotation = Matrix::rotate(static_cast<GLfloat>(groupRotationAngle), 0.0f, 1.0f, 0.0f);
-            Matrix modelMatrix = Matrix::translate(groupPosition[0], groupPosition[1], groupPosition[2]) * rotation;
 
-            //モデルビュー変換行列を求める
-            const Matrix modelview(view * modelMatrix);
 
             //法線ベクトルの変換行列の格納先
             GLfloat normalMatrix[9];
@@ -649,13 +529,9 @@ int main()
             static_model.model_st.shape->draw();
 
         }
-        ////二つ目の図形描画
-        //const Matrix modelview1(modelview * Matrix::translate(0.0f, 0.0f, 3.0f));
-        //modelview1.getNormalMatrix(normalMatrix);
-        //glUniformMatrix4fv(modelviewLoc, 1, GL_FALSE, modelview1.data());
-        //glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, normalMatrix);
-        //material.select(0, 1);
-        //shape->draw();
+        if (is_moveing) {
+            drawParticle(particleSystem, groupPosition, particle_program, deltaTime, particle_modelviewLoc, particle_projectionLoc, modelview, projection, particle_TexLoc);
+        }
 
         // カラーバッファを入れ替えてイベントを取り出す
         window.swapBuffers();

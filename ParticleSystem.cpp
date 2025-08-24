@@ -3,6 +3,7 @@
 #include <chrono>
 #include <GLFW/glfw3.h>
 
+#define PI 3.14159f
 
 ParticleSystem::ParticleSystem(int maxParticles)
 	: maxParticles(maxParticles), lastUsedParticle(0), emitterPosition(0.0f), emitterRotation(1.0f), emitterDirection(0.0f, 1.0f, 0.0f),
@@ -11,7 +12,6 @@ ParticleSystem::ParticleSystem(int maxParticles)
 {
 	particles.resize(maxParticles);
 	positionData.resize(maxParticles);
-	colorData.resize(maxParticles);
 	sizeData.resize(maxParticles);
     rotationData.resize(maxParticles);
 }
@@ -62,26 +62,19 @@ void ParticleSystem::Initialize() {
 	glEnableVertexAttribArray(1);
     glVertexAttribDivisor(1, 1);
 
-	glGenBuffers(1, &VBO_colors);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO_colors);
-	glBufferData(GL_ARRAY_BUFFER, maxParticles * sizeof(glm::vec4), nullptr, GL_DYNAMIC_DRAW);
-	glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
-	glEnableVertexAttribArray(2);
-    glVertexAttribDivisor(2, 1);
-
 	glGenBuffers(1, &VBO_sizes);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO_sizes);
 	glBufferData(GL_ARRAY_BUFFER, maxParticles * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
-	glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
-	glEnableVertexAttribArray(3);
-    glVertexAttribDivisor(3, 1);
+	glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+	glEnableVertexAttribArray(2);
+    glVertexAttribDivisor(2, 1);
 
     glGenBuffers(1, &VBO_rotations);
     glBindBuffer(GL_ARRAY_BUFFER, VBO_rotations);
     glBufferData(GL_ARRAY_BUFFER, maxParticles * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
-    glEnableVertexAttribArray(4);
-    glVertexAttribDivisor(4, 1);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(3);
+    glVertexAttribDivisor(3, 1);
 
     //IBO作成
     glGenBuffers(1, &IBO);
@@ -116,7 +109,7 @@ int ParticleSystem::FindUnusedParticle() {
 
 void ParticleSystem::RespawnParticle(Particle& particle) {
 	particle.position = emitterPosition + glm::vec3(dist(rng) * 0.5f, 0.0f, dist(rng) * 0.5);
-    particle.theta = (15.0f + dist(rng) * 15.0f) * 3.1415f / 180.0f;
+    particle.theta = (15.0f + dist(rng) * 15.0f) * PI / 180.0f;
     float initial_speed = 7.0f;
 	float spread = 0.7f;
     particle.initial_velocity = glm::vec3(dist(rng) * spread,
@@ -124,10 +117,9 @@ void ParticleSystem::RespawnParticle(Particle& particle) {
                                           cos(particle.theta) * initial_speed + dist(rng) * spread);
 
     particle.velocity = particle.initial_velocity;
-	particle.color = glm::vec4(0.2f + dist(rng) * 0.1f, 0.6f + dist(rng) * 0.3f, 0.1f + dist(rng) * 0.1f, 1.0f);
 	particle.life = 1.0f;
 	particle.size = 0.4f * dist(rng) + 0.5f;
-    particle.rotation = dist(rng) * 3.1415f * 2.0f;
+    particle.rotation = dist(rng) * PI * 2.0f;
     particle.mass = 0.3f;
     particle.initial_time = static_cast<float>(glfwGetTime());
 }
@@ -182,12 +174,8 @@ void ParticleSystem::Update(float deltaTime) {
                 p.rotation += (1.0f + abs(p.velocity.y)) * deltaTime;
                 //cout <<"x="<< p.position.x << "y="<<p.position.y <<"z="<< p.position.z << endl;
 
-                // アルファ値をライフタイムに応じて変更
-                p.color.w = p.life;
-
                 // データをバッファ用配列にコピー
                 positionData[alive_particle_count] = p.position;
-                colorData[alive_particle_count] = p.color;
                 sizeData[alive_particle_count] = p.size * p.life;
                 rotationData[alive_particle_count] = p.rotation;
 
@@ -200,9 +188,6 @@ void ParticleSystem::Update(float deltaTime) {
     if (alive_particle_count > 0) {
         glBindBuffer(GL_ARRAY_BUFFER, VBO_positions);
         glBufferSubData(GL_ARRAY_BUFFER, 0, alive_particle_count * sizeof(glm::vec3), positionData.data());
-
-        glBindBuffer(GL_ARRAY_BUFFER, VBO_colors);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, alive_particle_count * sizeof(glm::vec4), colorData.data());
 
         glBindBuffer(GL_ARRAY_BUFFER, VBO_sizes);
         glBufferSubData(GL_ARRAY_BUFFER, 0, alive_particle_count * sizeof(float), sizeData.data());

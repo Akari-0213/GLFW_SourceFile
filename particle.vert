@@ -4,11 +4,9 @@ uniform mat4 projection;
 
 in vec2 vertex_position;
 in vec3 instance_position;
-in vec4 instance_color;
 in float instance_size;
 in float instance_rotation;
 out vec2 texCoord;
-out vec4 particle_color;
 
 void main(){
     texCoord = vertex_position + 0.5;
@@ -23,6 +21,4 @@ void main(){
     view_position.xy += rotated_position * instance_size;
     
     gl_Position = projection * view_position;
-    
-    particle_color = instance_color;
 }
